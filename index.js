@@ -3,25 +3,16 @@ import dotenv from "dotenv";
 dotenv.config();
 import express from "express";
 import corsConfig from "./config/corsConfig.js";
-import s3Client from "./config/s3ClientConfig.js";
 import addBucket from "./routes/POST/addBucket.js";
 import addFolderInBucket from "./routes/POST/addFolderInBucket.js";
-
 import listAllObjectsInBucket from "./routes/GET/listAllObjectsInBucket.js";
 import getObjectByKey from "./routes/GET/getObjectByKey.js";
+import upload from "./config/multerConfig.js"
 
 const app = express();
 app.use(express.json());
 app.use(corsConfig);
 
-// // Put an object into an Amazon S3 bucket.
-// await s3Client.send(
-//   new PutObjectCommand({
-//     Bucket: "myportfoliomedia",
-//     Key: "my-first-object.txt",
-//     Body: "Hello JavaScript SDK!",
-//   })
-// );
 
 //get object
 // Example URL: /getObjectByKey?subdirectory=dir&key=my-image.jpg
@@ -89,6 +80,38 @@ app.post("/addFolderInBucket", async (req, res) => {
   }
 });
 
+/**
+ * Add an image to a specified folder in a given bucket
+ * @param {express.Request} req
+ * @param {express.Response} res
+ * @returns {express.Response} details of image added
+ */
+app.post("/addImageInFolder", upload.single("image"), (req, res) => {
+  // After multer-s3 has processed the file upload, you can access the result through req.file
+  if (req.file) {
+    // Check if the file upload was successful
+    console.log("Upload Successful", req.file);
+    res.status(200).json({
+      message: "Image uploaded successfully",
+      fileLocation: req.file.location, // Location of the uploaded file in S3
+    });
+  } else {
+    // If multer did not attach a file object to the request, the upload failed
+    res.status(500).json({ message: "Failed to upload image" });
+  }
+});
+
+
+// app.post("/addImageInFolder", async (req, res) => {
+//   const { bucket, folder, image } = req.query;
+//   try {
+//     const result = await addImageInFolder(bucket, folder, key);
+//     console.log("Result:", result);
+//     res.status(200).json(result); // Sending the confirmation message as JSON
+//   } catch (error) {
+//     res.status(500).json({ error: error.message });
+//   }
+// });
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {

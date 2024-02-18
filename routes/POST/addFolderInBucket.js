@@ -29,10 +29,8 @@ const addFolderInBucket = async (bucket, folder) => {
 
   // Return the appropriate message based on whether the folder exists
   if (exists) {
-    console.log("Folder created successfully in bucket", bucket);
     return { message: "Folder created successfully" };
   } else {
-    console.log("Failed to create folder in bucket", bucket);
     throw new Error("Failed to create folder"); // or handle this case as needed
   }
 };

@@ -22,4 +22,5 @@ const s3Client = new S3Client({
     secretAccessKey: AWS_SECRET_ACCESS_KEY,
   },
 });
+
 export default s3Client;
