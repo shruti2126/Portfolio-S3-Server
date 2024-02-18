@@ -2,120 +2,102 @@
 import dotenv from "dotenv";
 dotenv.config();
 import express from "express";
-import cors from "cors";
-// This is used for getting user input.
-import { createInterface } from "readline/promises";
+import corsConfig from "./config/corsConfig.js";
+import s3Client from "./config/s3ClientConfig.js";
+import addBucket from "./routes/POST/addBucket.js";
+import addFolderInBucket from "./routes/POST/addFolderInBucket.js";
 
-import {
-  S3Client,
-  PutObjectCommand,
-  CreateBucketCommand,
-  DeleteObjectCommand,
-  DeleteBucketCommand,
-  paginateListObjectsV2,
-} from "@aws-sdk/client-s3";
-
-// Load AWS credentials and region from environment variables
-const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID;
-const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY;
-const AWS_REGION = process.env.AWS_REGION;
-
-// Ensure valid credentials and region
-if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY || !AWS_REGION) {
-  console.error("AWS credentials and region are missing.");
-  process.exit(1); // Exit the application with an error code
-}
+import listAllObjectsInBucket from "./routes/GET/listAllObjectsInBucket.js";
+import getObjectByKey from "./routes/GET/getObjectByKey.js";
 
 const app = express();
 app.use(express.json());
-app.use(
-  cors({
-    origins: ["http://localhost:3000", "https://shrutis.io"],
-    methods: "GET, POST, PUT, DELETE",
-    allowedHeaders: "Content-Type",
-    credentials: true,
-  })
-);
+app.use(corsConfig);
 
-  // Create an S3 client with the configured credentials and region
-  const s3Client = new S3Client({
-    region: AWS_REGION,
-    credentials: {
-      accessKeyId: AWS_ACCESS_KEY_ID,
-      secretAccessKey: AWS_SECRET_ACCESS_KEY,
-    },
-  });
+// // Put an object into an Amazon S3 bucket.
+// await s3Client.send(
+//   new PutObjectCommand({
+//     Bucket: "myportfoliomedia",
+//     Key: "my-first-object.txt",
+//     Body: "Hello JavaScript SDK!",
+//   })
+// );
 
-  // Put an object into an Amazon S3 bucket.
-  await s3Client.send(
-    new PutObjectCommand({
-      Bucket: "myportfoliomedia",
-      Key: "my-first-object.txt",
-      Body: "Hello JavaScript SDK!",
-    })
-  );
+//get object
+// Example URL: /getObjectByKey?subdirectory=dir&key=my-image.jpg
+app.get("/getObjectByKey", async (req, res) => {
+  const { subdirectory, key } = req.query;
+  try {
+    // Set the appropriate content type for the image
+    res.setHeader("Content-Type", "image/png");
+    const data = await getObjectByKey(subdirectory, key);
+    data.pipe(res);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+    console.log(error);
+  }
+});
 
-  //get object
-  app.get("/getMedia", async (req, res) => {
-    const { key } = req.params;
-    try {
-      const obj = await getObjectByKey(key);
-      
-      res.status(200).sendFile(obj);
-    } catch (error) {
-      res.sendStatus(500).json({ error });
-      console.log(error);
-    }
-  });
+//list all object in a bucket
+app.get("/listAllObjectsInBucket", async (req, res) => {
+  const { bucket } = req.query;
+  console.log("bucket name = ", bucket);
+  try {
+    const list = await listAllObjectsInBucket(bucket);
+    console.log("listOfObjects = ", list);
+    res.status(200).send(list);
+  } catch (error) {
+    res.json({ error });
+  }
+});
 
-  
+/**
+ * Add a bucket in S3
+ * @param {express.Request} req
+ * @param {express.Response} res
+ * @returns {express.Response}
+ */
+app.post("/addBucket", async (req, res) => {
+  const { bucket } = req.query;
+  console.log("bucket name = ", bucket);
+  try {
+    const bucketDetails = await addBucket(bucket);
+    console.log("bucketDetails = ", bucketDetails);
+    res.status(200).json({
+      message: "Bucket added successfully",
+      bucketDetails: bucketDetails,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
-  // Confirm resource deletion.
-  // const prompt = createInterface({
-  //   input: process.stdin,
-  //   output: process.stdout,
-  // });
-
-  // const result = await prompt.question("Empty and delete bucket? (y/n) ");
-  // prompt.close();
-
-  // if (result === "y") {
-  //   // Create an async iterator over lists of objects in a bucket.
-  //   const paginator = paginateListObjectsV2(
-  //     { client: s3Client },
-  //     { Bucket: "myportfoliomedia" }
-  //   );
-  //   for await (const page of paginator) {
-  //     const objects = page.Contents;
-  //     if (objects) {
-  //       // For every object in each page, delete it.
-  //       for (const object of objects) {
-  //         await s3Client.send(
-  //           new DeleteObjectCommand({
-  //             Bucket: "myportfoliomedia",
-  //             Key: object.Key,
-  //           })
-  //         );
-  //       }
-  //     }
-  //   }
-
-  //   // Once all the objects are gone, the bucket can be deleted.
-  //   await s3Client.send(
-  //     new DeleteBucketCommand({ Bucket: "myportfoliomedia" })
-  //   );
-  // }
+/**
+ * Add a folder in S3
+ * @param {express.Request} req
+ * @param {express.Response} res
+ * @returns {express.Response} details of folder added
+ */
+app.post("/addFolderInBucket", async (req, res) => {
+  const { bucket, folder } = req.query;
+  try {
+    const result = await addFolderInBucket(bucket, folder);
+    console.log("Result:", result);
+    res.status(200).json(result); // Sending the confirmation message as JSON
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 
-// Call a function if this file was run directly. This allows the file
-// to be runnable without running on import.
-// import { fileURLToPath } from "url";
-// if (process.argv[1] === fileURLToPath(import.meta.url)) {
-//   main();
-// }
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => {
+  console.log(`Server is running on port = ${PORT}`);
+});
 
 app.get("/", (req, res) => {
-  res.send("Hello! I am up and running on port ", process.env.PORT || 8081);
+  res.status(200).send({ message: `Hello! I am up and running on ${PORT}` });
+  console.log("Hello! I am up and running on port ", process.env.PORT || 8080);
 });
 
 export default app;
